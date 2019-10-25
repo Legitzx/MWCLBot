@@ -20,8 +20,12 @@ public class Commands extends ListenerAdapter {
         Role manager = event.getGuild().getRolesByName("Management", true).get(0);
 
         if(args[0].equalsIgnoreCase(Info.PREFIX + "roster")) {
-            if(!getRoster(event.getChannel(), args[1])) {
-                event.getChannel().sendMessage("**Team does not exist**").queue();
+            if(args.length == 2) {
+                if(!getRoster(event.getChannel(), args[1])) {
+                    event.getChannel().sendMessage("**Team does not exist**").queue();
+                }
+            } else {
+                invalidArgsRoster(event.getChannel());
             }
         }
 
@@ -57,7 +61,7 @@ public class Commands extends ListenerAdapter {
                 if(args.length == 4) {
                     addLeader(args[1], args[2], args[3], event.getChannel());
                 } else {
-                    // Invalid args
+                    invalidArgsAddLeader(event.getChannel());
                 }
             } else {
                 event.getMessage().delete().reason("Tried to execute !addleader").queueAfter(5, TimeUnit.SECONDS);
@@ -70,14 +74,91 @@ public class Commands extends ListenerAdapter {
                 // !addplayer <team> <ign> <uuid>
                 if(args.length == 4) {
                     addPlayer(args[1], args[2], args[3], event.getChannel());
-                    System.out.println("add player1");
                 } else {
-                    // Invalid args
+                    invalidArgsAddPlayer(event.getChannel());
                 }
             } else {
                 event.getMessage().delete().reason("Tried to execute !addplayer").queueAfter(5, TimeUnit.SECONDS);
                 event.getChannel().sendMessage("**You are not a manager!**").complete().delete().queueAfter(5, TimeUnit.SECONDS);
             }
+        }
+
+        if(args[0].equalsIgnoreCase(Info.PREFIX + "removeplayer")) {
+            if(event.getMember().getRoles().contains(manager)) {
+                // !removeplayer <team> <ign> <uuid>
+                if(args.length == 3) {
+                    removePlayer(args[1], args[2], event.getChannel());
+                } else {
+                    invalidArgsRemovePlayer(event.getChannel());
+                }
+            } else {
+                event.getMessage().delete().reason("Tried to execute !removeplayer").queueAfter(5, TimeUnit.SECONDS);
+                event.getChannel().sendMessage("**You are not a manager!**").complete().delete().queueAfter(5, TimeUnit.SECONDS);
+            }
+        }
+    }
+
+    private void removePlayer(String team, String ign, TextChannel channel) {
+        ResultSet myRs = null;
+        Statement statement = null;
+        PreparedStatement preparedStatement = null;
+        Connection conn = connectSQL();
+
+        String query = "SELECT * FROM teams WHERE team_name = '" + team + "'";
+
+        try {
+            statement = conn.createStatement();
+            myRs = statement.executeQuery(query);
+
+            if(!myRs.next()) {  //  https://javarevisited.blogspot.com/2016/10/how-to-check-if-resultset-is-empty-in-Java-JDBC.html
+                // Team does not exist
+                channel.sendMessage("**Team does not exist!**").complete().delete().queueAfter(5, TimeUnit.SECONDS);
+            } else {
+                do {
+                    ArrayList<String> newList = new ArrayList<>();
+                    int count = 0;
+                    boolean check = false;
+                    for(int x = 1; x <= 30; x++) {
+                        String player = "";
+                        String shortPlayer = "";
+                        player = myRs.getString("p" + Integer.toString(x)); // Player will be null if there is no player in the column
+                        if(player != null) {
+                            shortPlayer = cleanName(player, false);
+                        }
+                        if(!shortPlayer.equalsIgnoreCase(ign)) {
+                            newList.add(player);
+                        } else {
+                            count++;
+                            check = true;
+                        }
+
+                        if(check && player == null) {
+                            for(int i = 0; i < count; i++) { // When we remove one person from the team, we need to add another value to the end of the array
+                                newList.add(null);
+                                check = false;
+                            }
+                        }
+                    }
+                    System.out.println(newList.size());
+                    for(int x = 1; x <= 30; x++) {
+                        String newValue = newList.get(x - 1);
+
+                        String player = "p" + Integer.toString(x);
+
+                        query = "UPDATE teams SET " + player + " = ? WHERE team_name = '" + team + "'";
+
+                        preparedStatement = conn.prepareStatement(query);
+                        preparedStatement.setString(1, newValue);
+                        preparedStatement.executeUpdate();
+                    }
+                    channel.sendMessage("**Make sure to type: ``!roster " + team + "`` to make sure ``" + ign + "`` was removed!**").queue();
+                } while(myRs.next());
+            }
+
+            myRs.close();
+            conn.close();
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 
@@ -97,7 +178,7 @@ public class Commands extends ListenerAdapter {
 
             if(!myRs.next()) {  //  https://javarevisited.blogspot.com/2016/10/how-to-check-if-resultset-is-empty-in-Java-JDBC.html
                 // Team does not exist
-
+                channel.sendMessage("**Team does not exist!**").complete().delete().queueAfter(5, TimeUnit.SECONDS);
             } else {
                 do {
                     ArrayList<String> newList = new ArrayList<>();
@@ -193,10 +274,42 @@ public class Commands extends ListenerAdapter {
         }
     }
 
+    private void invalidArgsRoster(TextChannel channel) {
+        EmbedBuilder builder = new EmbedBuilder();
+        builder.setTitle("Invalid Arguments");
+        builder.addField("!roster {Team name}", "{} = Required", true);
+        builder.setColor(Color.RED);
+        channel.sendMessage(builder.build()).queue();
+    }
+
     private void invalidArgsCreateTeam(TextChannel channel) {
         EmbedBuilder builder = new EmbedBuilder();
         builder.setTitle("Invalid Arguments");
         builder.addField("!createteam {Team name} {Region NA/EU}", "{} = Required", true);
+        builder.setColor(Color.RED);
+        channel.sendMessage(builder.build()).queue();
+    }
+
+    private void invalidArgsAddLeader(TextChannel channel) {
+        EmbedBuilder builder = new EmbedBuilder();
+        builder.setTitle("Invalid Arguments");
+        builder.addField("!addleader {Team name} {IGN} {UUID}", "{} = Required", true);
+        builder.setColor(Color.RED);
+        channel.sendMessage(builder.build()).queue();
+    }
+
+    private void invalidArgsAddPlayer(TextChannel channel) {
+        EmbedBuilder builder = new EmbedBuilder();
+        builder.setTitle("Invalid Arguments");
+        builder.addField("!addplayer {Team name} {IGN} {UUID}", "{} = Required", true);
+        builder.setColor(Color.RED);
+        channel.sendMessage(builder.build()).queue();
+    }
+
+    private void invalidArgsRemovePlayer(TextChannel channel) {
+        EmbedBuilder builder = new EmbedBuilder();
+        builder.setTitle("Invalid Arguments");
+        builder.addField("!removeplayer {Team name} {IGN}", "{} = Required", true);
         builder.setColor(Color.RED);
         channel.sendMessage(builder.build()).queue();
     }
@@ -296,181 +409,181 @@ public class Commands extends ListenerAdapter {
                     if(p1 == null) {
                         p1 = "";
                     } else {
-                        p1 = cleanName(p1); // Gets rid of uuid
+                        p1 = cleanName(p1, true); // Gets rid of uuid
                     }
 
                     if(p2 == null) {
                         p2 = "";
                     } else {
-                        p2 = cleanName(p2);
+                        p2 = cleanName(p2, true);
                     }
 
                     if(p3 == null) {
                         p3 = "";
                     } else {
-                        p3 = cleanName(p3);
+                        p3 = cleanName(p3, true);
                     }
 
                     if(p4 == null) {
                         p4 = "";
                     } else {
-                        p4 = cleanName(p4);
+                        p4 = cleanName(p4, true);
                     }
 
                     if(p5 == null) {
                         p5 = "";
                     } else {
-                        p5 = cleanName(p5);
+                        p5 = cleanName(p5, true);
                     }
 
                     if(p6 == null) {
                         p6 = "";
                     } else {
-                        p6 = cleanName(p6);
+                        p6 = cleanName(p6, true);
                     }
 
                     if(p7 == null) {
                         p7 = "";
                     } else {
-                        p7 = cleanName(p7);
+                        p7 = cleanName(p7, true);
                     }
 
                     if(p8 == null) {
                         p8 = "";
                     } else {
-                        p8 = cleanName(p8);
+                        p8 = cleanName(p8, true);
                     }
 
                     if(p9 == null) {
                         p9 = "";
                     } else {
-                        p9 = cleanName(p9);
+                        p9 = cleanName(p9, true);
                     }
 
                     if(p10 == null) {
                         p10 = "";
                     } else {
-                        p10 = cleanName(p10);
+                        p10 = cleanName(p10, true);
                     }
 
                     if(p11 == null) {
                         p11 = "";
                     } else {
-                        p11 = cleanName(p11);
+                        p11 = cleanName(p11, true);
                     }
 
                     if(p12 == null) {
                         p12 = "";
                     } else {
-                        p12 = cleanName(p12);
+                        p12 = cleanName(p12, true);
                     }
 
                     if(p13 == null) {
                         p13 = "";
                     } else {
-                        p13 = cleanName(p13);
+                        p13 = cleanName(p13, true);
                     }
 
                     if(p14 == null) {
                         p14 = "";
                     } else {
-                        p14 = cleanName(p14);
+                        p14 = cleanName(p14, true);
                     }
 
                     if(p15 == null) {
                         p15 = "";
                     } else {
-                        p15 = cleanName(p15);
+                        p15 = cleanName(p15, true);
                     }
 
                     if(p16 == null) {
                         p16 = "";
                     } else {
-                        p16 = cleanName(p16);
+                        p16 = cleanName(p16, true);
                     }
 
                     if(p17 == null) {
                         p17 = "";
                     } else {
-                        p17 = cleanName(p17);
+                        p17 = cleanName(p17, true);
                     }
 
                     if(p18 == null) {
                         p18 = "";
                     } else {
-                        p18 = cleanName(p18);
+                        p18 = cleanName(p18, true);
                     }
 
                     if(p19 == null) {
                         p19 = "";
                     } else {
-                        p19 = cleanName(p19);
+                        p19 = cleanName(p19, true);
                     }
 
                     if(p20 == null) {
                         p20 = "";
                     } else {
-                        p20 = cleanName(p20);
+                        p20 = cleanName(p20, true);
                     }
 
                     if(p21 == null) {
                         p21 = "";
                     } else {
-                        p21 = cleanName(p21);
+                        p21 = cleanName(p21, true);
                     }
 
                     if(p22 == null) {
                         p22 = "";
                     } else {
-                        p22 = cleanName(p22);
+                        p22 = cleanName(p22, true);
                     }
 
                     if(p23 == null) {
                         p23 = "";
                     } else {
-                        p23 = cleanName(p23);
+                        p23 = cleanName(p23, true);
                     }
 
                     if(p24 == null) {
                         p24 = "";
                     } else {
-                        p24 = cleanName(p24);
+                        p24 = cleanName(p24, true);
                     }
 
                     if(p25 == null) {
                         p25 = "";
                     } else {
-                        p25 = cleanName(p25);
+                        p25 = cleanName(p25, true);
                     }
 
                     if(p26 == null) {
                         p26 = "";
                     } else {
-                        p26 = cleanName(p26);
+                        p26 = cleanName(p26, true);
                     }
 
                     if(p27 == null) {
                         p27 = "";
                     } else {
-                        p27 = cleanName(p27);
+                        p27 = cleanName(p27, true);
                     }
 
                     if(p28 == null) {
                         p28 = "";
                     } else {
-                        p28 = cleanName(p4);
+                        p28 = cleanName(p4, true);
                     }
 
                     if(p29 == null) {
                         p29 = "";
                     } else {
-                        p29 = cleanName(p29);
+                        p29 = cleanName(p29, true);
                     }
 
                     if(p30 == null) {
                         p30 = "";
                     } else {
-                        p30 = cleanName(p30);
+                        p30 = cleanName(p30, true);
                     }
                 } while(myRs.next());
             }
@@ -493,21 +606,17 @@ public class Commands extends ListenerAdapter {
         return true;
     }
 
-    private String cleanName(String name) { //https://stackoverflow.com/questions/7683448/in-java-how-to-get-substring-from-a-string-till-a-character-c
+    private String cleanName(String name, boolean checkForLeader) { //https://stackoverflow.com/questions/7683448/in-java-how-to-get-substring-from-a-string-till-a-character-c
         int index = name.indexOf(",");
 
         String crown = "\uD83D\uDC51";
-
-        if(name.substring(name.length() - 1).equalsIgnoreCase("1")) {
-
-        }
 
         String newStr = "";
         if(index != -1) {
             newStr = name.substring(0, index);
         }
 
-        if(name.substring(name.length() - 1).equalsIgnoreCase("1")) { // This person is a leader...
+        if((name.substring(name.length() - 1).equalsIgnoreCase("1")) && checkForLeader) { // This person is a leader...
             newStr += crown;
         }
         return newStr;
