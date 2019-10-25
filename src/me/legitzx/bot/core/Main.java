@@ -13,7 +13,7 @@ public class Main extends ListenerAdapter {
     public static void main(String[] args) throws LoginException {
         new JDABuilder(TOKEN)
                 .addEventListeners(new Commands())
-                .setActivity(Activity.playing("Mega Walls Comp. Team"))
+                .setActivity(Activity.playing("MWCL"))
                 .build();
     }
 }
