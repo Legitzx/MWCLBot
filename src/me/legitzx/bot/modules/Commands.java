@@ -19,6 +19,15 @@ public class Commands extends ListenerAdapter {
 
         Role manager = event.getGuild().getRolesByName("Management", true).get(0);
 
+        if(args[0].equalsIgnoreCase(Info.PREFIX + "rankings")) {
+            // !rankings
+            if(args.length == 1) {
+                getRankings(event.getChannel());
+            } else {
+                invalidArgsRankings(event.getChannel());
+            }
+        }
+
         if(args[0].equalsIgnoreCase(Info.PREFIX + "roster")) {
             if(args.length == 2) {
                 if(!getRoster(event.getChannel(), args[1])) {
@@ -28,6 +37,17 @@ public class Commands extends ListenerAdapter {
                 invalidArgsRoster(event.getChannel());
             }
         }
+
+        if(args[0].equalsIgnoreCase(Info.PREFIX + "player")) {
+            // !player <ign>
+            if(args.length == 2) {
+                playerSearch(args[1], event.getChannel());
+            } else {
+                invalidArgsPlayer(event.getChannel());
+            }
+        }
+
+
 
         // Management Commands
         if(args[0].equalsIgnoreCase(Info.PREFIX + "createteam")) {
@@ -39,6 +59,8 @@ public class Commands extends ListenerAdapter {
                             //Everything is GOOD
                             if(createTeam(args[1], args[2])) {
                                 event.getChannel().sendMessage("**Team Creation was successful**").queue();
+                            } else {
+                                event.getChannel().sendMessage("**Team Creation was unsuccessful! There may be another team with that name already.**").queue();
                             }
                         } else {
                             invalidArgsCreateTeam(event.getChannel());
@@ -96,6 +118,175 @@ public class Commands extends ListenerAdapter {
                 event.getChannel().sendMessage("**You are not a manager!**").complete().delete().queueAfter(5, TimeUnit.SECONDS);
             }
         }
+
+        if(args[0].equalsIgnoreCase(Info.PREFIX + "disband")) {
+            if(event.getMember().getRoles().contains(manager)) {
+                // !disband <team>
+                if(args.length == 2) {
+                    disbandteam(args[1], event.getChannel());
+                } else {
+                    invalidArgsDisband(event.getChannel());
+                }
+            } else {
+                event.getMessage().delete().reason("Tried to execute !disband").queueAfter(5, TimeUnit.SECONDS);
+                event.getChannel().sendMessage("**You are not a manager!**").complete().delete().queueAfter(5, TimeUnit.SECONDS);
+            }
+        }
+
+        if(args[0].equalsIgnoreCase(Info.PREFIX + "promoterank")) {
+            if(event.getMember().getRoles().contains(manager)) {
+                // !promoterank <team>
+                if(args.length == 2) {
+                    promoteRank(args[1], event.getChannel());
+                } else {
+                    invalidArgsPromoteRank(event.getChannel());
+                }
+            } else {
+                event.getMessage().delete().reason("Tried to execute !promoterank").queueAfter(5, TimeUnit.SECONDS);
+                event.getChannel().sendMessage("**You are not a manager!**").complete().delete().queueAfter(5, TimeUnit.SECONDS);
+            }
+        }
+
+        if(args[0].equalsIgnoreCase(Info.PREFIX + "demoterank")) {
+            if(event.getMember().getRoles().contains(manager)) {
+                // !demoterank <team>
+                if(args.length == 2) {
+                    demoteRank(args[1], event.getChannel());
+                } else {
+                    invalidArgsDemoteRank(event.getChannel());
+                }
+            } else {
+                event.getMessage().delete().reason("Tried to execute !demoterank").queueAfter(5, TimeUnit.SECONDS);
+                event.getChannel().sendMessage("**You are not a manager!**").complete().delete().queueAfter(5, TimeUnit.SECONDS);
+            }
+        }
+    }
+
+    private void getRankings(TextChannel channel) {
+        Connection conn = connectSQL();
+        ArrayList<String> teams = new ArrayList<>();
+        ArrayList<Integer> points = new ArrayList<>();
+        StringBuilder str = new StringBuilder();
+
+        String query = "SELECT * FROM teams ORDER by rank_number DESC";
+        try {
+            PreparedStatement preparedStatement = conn.prepareStatement(query);
+            ResultSet myRs = preparedStatement.executeQuery();
+
+           while(myRs.next()) {
+               teams.add(myRs.getString("team_name"));
+               points.add(myRs.getInt("rank_number"));
+           }
+
+           EmbedBuilder builder = new EmbedBuilder();
+           builder.setColor(Color.RED);
+           builder.setTitle("Rankings");
+           for(int x = 0; x < teams.size(); x++) {
+               str.append(Integer.toString(x + 1) + ". " +teams.get(x) + " - " + Integer.toString(points.get(x)) + "\n");
+           }
+
+           builder.setDescription(str.toString());
+           channel.sendMessage(builder.build()).queue();
+
+            preparedStatement.close();
+            conn.close();
+        } catch (Exception e) { e.printStackTrace(); }
+    }
+
+    private void demoteRank(String team, TextChannel channel) {
+        Connection conn = connectSQL();
+
+        String query = "UPDATE teams SET rank_number = rank_number - 1 WHERE team_name = ?";
+        try {
+            PreparedStatement preparedStatement = conn.prepareStatement(query);
+            preparedStatement.setString(1, team);
+
+            int i = preparedStatement.executeUpdate();
+
+            if(i == 1) {
+                channel.sendMessage("**Team: ``" + team + "`` was moved down a rank.**").queue();
+            } else {
+                channel.sendMessage("**Team not found.**").queue();
+            }
+
+            preparedStatement.close();
+            conn.close();
+        } catch (Exception e) { e.printStackTrace(); }
+    }
+
+    private void promoteRank(String team, TextChannel channel) {
+        Connection conn = connectSQL();
+
+        String query = "UPDATE teams SET rank_number = rank_number + 1 WHERE team_name = ?";
+        try {
+            PreparedStatement preparedStatement = conn.prepareStatement(query);
+            preparedStatement.setString(1, team);
+
+            int i = preparedStatement.executeUpdate();
+
+            if(i == 1) {
+                channel.sendMessage("**Team: ``" + team + "`` was moved up a rank.**").queue();
+            } else {
+                channel.sendMessage("**Team not found.**").queue();
+            }
+
+            preparedStatement.close();
+            conn.close();
+        } catch (Exception e) { e.printStackTrace(); }
+    }
+
+    private void playerSearch(String ign, TextChannel channel) {
+        Connection conn = connectSQL();
+        String team = "";
+
+        String query = "SELECT * FROM teams WHERE p1 LIKE ? OR p2 LIKE ? OR p3 LIKE ? OR p4 LIKE ? OR p5 LIKE ? OR p6 LIKE ? OR p7 LIKE ? OR p8 LIKE ? OR p9 LIKE ? OR p10 LIKE ? OR p11 LIKE ? OR p12 LIKE ? OR p13 LIKE ? OR p14 LIKE ? OR p15 LIKE ? OR p16 LIKE ? OR p17 LIKE ? OR p18 LIKE ? OR p19 LIKE ? OR p20 LIKE ? OR p21 LIKE ? OR p22 LIKE ? OR p23 LIKE ? OR p24 LIKE ? OR p25 LIKE ? OR p26 LIKE ? OR p27 LIKE ? OR p28 LIKE ? OR p29 LIKE ? OR p30 LIKE ?";
+        try {
+            PreparedStatement preparedStatement = conn.prepareStatement(query);
+
+            for(int x = 1; x <= 30; x++) {
+                preparedStatement.setString(x, ign + "%"); // https://www.tutorialspoint.com/sql/sql-like-clause.htm
+            }
+
+            ResultSet myRs = preparedStatement.executeQuery();
+
+            if(!myRs.next()) {
+                // Guy dosent exist
+                channel.sendMessage("**Player: ``" + ign + "`` does not exist!**").queue();
+            } else {
+                do {
+                    team = myRs.getString("team_name");
+                    EmbedBuilder builder = new EmbedBuilder();
+                    builder.setTitle(ign);
+                    builder.setColor(Color.RED);
+                    builder.addField("Team:", team, true);
+                    channel.sendMessage(builder.build()).queue();
+                } while(myRs.next());
+            }
+
+            preparedStatement.close();
+            conn.close();
+        } catch (Exception e) { e.printStackTrace(); }
+    }
+
+    private void disbandteam(String team, TextChannel channel) {
+        Connection conn = connectSQL();
+
+        String query = "DELETE FROM teams WHERE team_name = ?";
+
+        try {
+            PreparedStatement preparedStatement = conn.prepareStatement(query);
+            preparedStatement.setString(1, team);
+            int i = preparedStatement.executeUpdate();
+
+            preparedStatement.close();
+            conn.close();
+
+            if(i == 1) {
+                channel.sendMessage("**Team: ``" + team + "`` was successfully disbaned!**").queue();
+            } else {
+                channel.sendMessage("**Team: ``" + team + "`` was unsuccessfully disbaned!**").queue();
+            }
+        } catch (Exception e) { e.printStackTrace(); }
     }
 
     private void removePlayer(String team, String ign, TextChannel channel) {
@@ -132,7 +323,7 @@ public class Commands extends ListenerAdapter {
                             check = true;
                         }
 
-                        if(check && player == null) {
+                        if(check && (player == null || x == 30)) {
                             for(int i = 0; i < count; i++) { // When we remove one person from the team, we need to add another value to the end of the array
                                 newList.add(null);
                                 check = false;
@@ -182,8 +373,10 @@ public class Commands extends ListenerAdapter {
             } else {
                 do {
                     ArrayList<String> newList = new ArrayList<>();
+                    ArrayList<String> realPlayer = new ArrayList<>();
                     int check = 0;
 
+                    realPlayer.add(playerFull);
                     for(int x = 1; x <= 30; x++) {
                         String player = "";
                         player = myRs.getString("p" + Integer.toString(x));
@@ -192,19 +385,27 @@ public class Commands extends ListenerAdapter {
                             check++;
                         }
                         newList.add(player);
+                        if(player != null) {
+                            realPlayer.add(player);
+                        }
                     }
-                    for(int x = 1; x <= 30; x++) {
-                        String newValue = newList.get(x - 1);
 
-                        String player = "p" + Integer.toString(x);
+                    if(realPlayer.size() > 30) {
+                        channel.sendMessage("**This team already has ``30`` players! Try: ``!removeplayer <Team> <IGN>`` to make room!**").queue();
+                    } else {
+                        for(int x = 1; x <= 30; x++) {
+                            String newValue = newList.get(x - 1);
 
-                        query = "UPDATE teams SET " + player + " = ? WHERE team_name = '" + team + "'";
+                            String player = "p" + Integer.toString(x);
 
-                        preparedStatement = conn.prepareStatement(query);
-                        preparedStatement.setString(1, newValue);
-                        preparedStatement.executeUpdate();
+                            query = "UPDATE teams SET " + player + " = ? WHERE team_name = '" + team + "'";
+
+                            preparedStatement = conn.prepareStatement(query);
+                            preparedStatement.setString(1, newValue);
+                            preparedStatement.executeUpdate();
+                        }
+                        channel.sendMessage("**Player: ``" + ign +"`` successfully added to Team: ``" + team + "``.**").queue();
                     }
-                    System.out.println(newList.toString());
                 } while(myRs.next());
             }
 
@@ -235,35 +436,36 @@ public class Commands extends ListenerAdapter {
             } else {
                 do {
                     ArrayList<String> newList = new ArrayList<>();
+                    ArrayList<String> realPlayer = new ArrayList<>(); // Used for measuring the amount of players on a team!
 
                     newList.add(leaderFull);
+                    realPlayer.add(leaderFull);
                     for(int x = 1; x <= 30; x++) {
                         String player = "";
                         player = myRs.getString("p" + Integer.toString(x));
                         newList.add(player);
+                        if(player != null) {
+                            realPlayer.add(player);
+                        }
                     }
 
+                    if(realPlayer.size() > 30) {
+                        channel.sendMessage("**This team already has ``30`` players! Try: ``!removeplayer <Team> <IGN>`` to make room!**").queue();
+                    } else {
+                        for(int x = 1; x <= 30; x++) {
+                            String newValue = newList.get(x - 1);
 
-                    for(int x = 1; x <= 30; x++) {
-                        String newValue = newList.get(x - 1);
+                            String player = "p" + Integer.toString(x);
 
-                        String player = "p" + Integer.toString(x);
+                            query = "UPDATE teams SET " + player + " = ? WHERE team_name = '" + team + "'";
 
-                        query = "UPDATE teams SET " + player + " = ? WHERE team_name = '" + team + "'";
+                            preparedStatement = conn.prepareStatement(query);
+                            preparedStatement.setString(1, newValue);
+                            preparedStatement.executeUpdate();
+                        }
 
-                        preparedStatement = conn.prepareStatement(query);
-                        preparedStatement.setString(1, newValue);
-                        preparedStatement.executeUpdate();
+                        channel.sendMessage("**Leader:``" + ign +"`` successfully added to Team: ``" + team + "``.**").queue();
                     }
-
-                    /*
-                    team = myRs.getString("team_name");
-                    rank = myRs.getInt("rank_number");
-                    region = myRs.getString("region");
-                    warningPoints = myRs.getInt("warning_points");
-                    */
-
-
                 } while(myRs.next());
             }
 
@@ -310,6 +512,46 @@ public class Commands extends ListenerAdapter {
         EmbedBuilder builder = new EmbedBuilder();
         builder.setTitle("Invalid Arguments");
         builder.addField("!removeplayer {Team name} {IGN}", "{} = Required", true);
+        builder.setColor(Color.RED);
+        channel.sendMessage(builder.build()).queue();
+    }
+
+    private void invalidArgsDisband(TextChannel channel) {
+        EmbedBuilder builder = new EmbedBuilder();
+        builder.setTitle("Invalid Arguments");
+        builder.addField("!disband {Team name}", "{} = Required", true);
+        builder.setColor(Color.RED);
+        channel.sendMessage(builder.build()).queue();
+    }
+
+    private void invalidArgsPlayer(TextChannel channel) {
+        EmbedBuilder builder = new EmbedBuilder();
+        builder.setTitle("Invalid Arguments");
+        builder.addField("!player {IGN}", "{} = Required", true);
+        builder.setColor(Color.RED);
+        channel.sendMessage(builder.build()).queue();
+    }
+
+    private void invalidArgsPromoteRank(TextChannel channel) {
+        EmbedBuilder builder = new EmbedBuilder();
+        builder.setTitle("Invalid Arguments");
+        builder.addField("!promoterank {Team name}", "{} = Required", true);
+        builder.setColor(Color.RED);
+        channel.sendMessage(builder.build()).queue();
+    }
+
+    private void invalidArgsDemoteRank(TextChannel channel) {
+        EmbedBuilder builder = new EmbedBuilder();
+        builder.setTitle("Invalid Arguments");
+        builder.addField("!demoterank {Team name}", "{} = Required", true);
+        builder.setColor(Color.RED);
+        channel.sendMessage(builder.build()).queue();
+    }
+
+    private void invalidArgsRankings(TextChannel channel) {
+        EmbedBuilder builder = new EmbedBuilder();
+        builder.setTitle("Invalid Arguments");
+        builder.addField("!rankings", "{", true);
         builder.setColor(Color.RED);
         channel.sendMessage(builder.build()).queue();
     }
@@ -571,7 +813,7 @@ public class Commands extends ListenerAdapter {
                     if(p28 == null) {
                         p28 = "";
                     } else {
-                        p28 = cleanName(p4, true);
+                        p28 = cleanName(p28, true);
                     }
 
                     if(p29 == null) {
@@ -626,6 +868,28 @@ public class Commands extends ListenerAdapter {
         int rank_number = 0;
         int warning_points = 0;
 
+        try { // This code checks whether that team already exists
+            int exist = 0;
+
+            Connection conn = connectSQL();
+            String query = "SELECT count(*) FROM teams WHERE team_name = ?";
+            PreparedStatement statement = conn.prepareStatement(query);
+            statement.setString(1, teamName);
+            ResultSet myRs = statement.executeQuery();
+            if(myRs.next()) {
+                exist = myRs.getInt(1);
+            }
+            if(exist > 0) {
+                return false;
+            }
+
+            conn.close();
+            statement.close();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
         // String query = "INSERT INTO teams (team_name, region, rank_number, warning_points, leader) VALUES (`" + teamName +"`, `" + region +"`, `" + rank_number + "`, `" + warning_points + "`, `" + leaderIGN + "," + leaderUUID + "`);";
         String query = "INSERT INTO teams (team_name, region, rank_number, warning_points) VALUES (?, ?, ?, ?)";
         try {
@@ -649,7 +913,7 @@ public class Commands extends ListenerAdapter {
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
-            System.out.println("Insert completed.");
+            //System.out.println("Insert completed.");
         }
         return false;
     }
