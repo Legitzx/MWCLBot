@@ -19,12 +19,13 @@ public class Main extends ListenerAdapter {
 }
 
 /* MYSQL TABLE
- CREATE TABLE teams (
+  CREATE TABLE teams (
    id INT AUTO_INCREMENT PRIMARY KEY,
    team_name VARCHAR(12) NOT NULL,
    region VARCHAR(2) NOT NULL,
    rank_number INT,
    warning_points INT,
+   conference VARCHAR(1),
    p1 VARCHAR(54),
    p2 VARCHAR(54),
    p3 VARCHAR(54),

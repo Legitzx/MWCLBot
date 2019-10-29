@@ -52,15 +52,19 @@ public class Commands extends ListenerAdapter {
         // Management Commands
         if(args[0].equalsIgnoreCase(Info.PREFIX + "createteam")) {
             if(event.getMember().getRoles().contains(manager)) {
-                // !createteam <team> <region>
-                if(args.length == 3) {
+                // !createteam <team> <region> <conference(A/B)>
+                if(args.length == 4) {
                     if(args[1].length() < 12) {
                         if(args[2].length() <= 2) {
-                            //Everything is GOOD
-                            if(createTeam(args[1], args[2])) {
-                                event.getChannel().sendMessage("**Team Creation was successful**").queue();
+                            if(args[3].length() == 1) {
+                                //Everything is GOOD
+                                if(createTeam(args[1], args[2], args[3])) {
+                                    event.getChannel().sendMessage("**Team Creation was successful**").queue();
+                                } else {
+                                    event.getChannel().sendMessage("**Team Creation was unsuccessful! There may be another team with that name already.**").queue();
+                                }
                             } else {
-                                event.getChannel().sendMessage("**Team Creation was unsuccessful! There may be another team with that name already.**").queue();
+                                invalidArgsCreateTeam(event.getChannel());
                             }
                         } else {
                             invalidArgsCreateTeam(event.getChannel());
@@ -487,7 +491,7 @@ public class Commands extends ListenerAdapter {
     private void invalidArgsCreateTeam(TextChannel channel) {
         EmbedBuilder builder = new EmbedBuilder();
         builder.setTitle("Invalid Arguments");
-        builder.addField("!createteam {Team name} {Region NA/EU}", "{} = Required", true);
+        builder.addField("!createteam {Team name} {Region NA/EU} {Confernce A/B}", "{} = Required", true);
         builder.setColor(Color.RED);
         channel.sendMessage(builder.build()).queue();
     }
@@ -562,6 +566,7 @@ public class Commands extends ListenerAdapter {
         int rank = 0;
         String region = "";
         int warningPoints = 0;
+        String conference = "";
 
         ResultSet myRs = null;
         Statement statement = null;
@@ -613,6 +618,7 @@ public class Commands extends ListenerAdapter {
                     rank = myRs.getInt("rank_number");
                     region = myRs.getString("region");
                     warningPoints = myRs.getInt("warning_points");
+                    conference = myRs.getString("conference");
 
 
                     p1 = myRs.getString("p1");
@@ -840,7 +846,7 @@ public class Commands extends ListenerAdapter {
         EmbedBuilder builder = new EmbedBuilder();
         builder.setColor(Color.RED);
         builder.setTitle(team);
-        builder.setDescription("Rank: " + rank + " | " + "Region: " + region.toUpperCase() + " | " + "Warning Points: " + warningPoints + " | " + "League: MWCL");
+        builder.setDescription("Rank: " + rank + " | " + "Region: " + region.toUpperCase() + " | " + "Warning Points: " + warningPoints + " | " + "Conference: " + conference +  " | " + "League: MWCL");
         builder.addField("Roster", p1 + " - " + p16 + "\n" + p2 + " - " + p17 + "\n" + p3 + " - " + p18 + "\n" +p4 + " - " + p19 + "\n" +p5 + " - " + p20 + "\n" +p6 + " - " + p21 + "\n" +p7 + " - " + p22 + "\n" +p8 + " - " + p23 + "\n" +p9 + " - " + p24 + "\n" +p10 + " - " + p25 + "\n" +p11 + " - " + p26 + "\n" +p12 + " - " + p27 + "\n" +p13 + " - " + p28 + "\n" +p14 + " - " + p29 + "\n" +p15 + " - " + p30, true);
 
         channel.sendMessage(builder.build()).queue();
@@ -864,7 +870,7 @@ public class Commands extends ListenerAdapter {
         return newStr;
     }
 
-    private boolean createTeam(String teamName, String region) {
+    private boolean createTeam(String teamName, String region, String confernce) {
         int rank_number = 0;
         int warning_points = 0;
 
@@ -891,7 +897,7 @@ public class Commands extends ListenerAdapter {
         }
 
         // String query = "INSERT INTO teams (team_name, region, rank_number, warning_points, leader) VALUES (`" + teamName +"`, `" + region +"`, `" + rank_number + "`, `" + warning_points + "`, `" + leaderIGN + "," + leaderUUID + "`);";
-        String query = "INSERT INTO teams (team_name, region, rank_number, warning_points) VALUES (?, ?, ?, ?)";
+        String query = "INSERT INTO teams (team_name, region, rank_number, warning_points, conference) VALUES (?, ?, ?, ?, ?)";
         try {
             Connection conn = connectSQL();
             PreparedStatement pst = conn.prepareStatement(query);
@@ -899,6 +905,7 @@ public class Commands extends ListenerAdapter {
             pst.setString(2, region);
             pst.setInt(3, rank_number);
             pst.setInt(4, warning_points);
+            pst.setString(5, confernce);
 
             int i = pst.executeUpdate();
 
